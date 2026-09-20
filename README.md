@@ -31,6 +31,26 @@ npm run dev -- --host
 
 表示された `http://<PCのIP>:5173` をスマホで開く。
 
+## 公開先
+
+https://kiichiro-ito.github.io/fretboard/
+
+`main` に push すると GitHub Actions がビルドして GitHub Pages に配信する
+([.github/workflows/deploy.yml](.github/workflows/deploy.yml))。
+手元で `npm run build` する必要はない。
+
+```bash
+git push
+```
+
+デプロイの状況は `gh run list` / `gh run watch` で見られる。
+
+スマホでは上記 URL を開いて「共有 → ホーム画面に追加」すると、
+アドレスバーなしのスタンドアロン起動になり、Service Worker のおかげで
+オフラインでも練習できる。
+
+> 記録は端末の localStorage にしか入らないので、PC とスマホで履歴は共有されない。
+
 ## モード
 
 | モード | 内容 |
