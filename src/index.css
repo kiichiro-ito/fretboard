@@ -1,0 +1,78 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-ink-950: #07090d;
+  --color-ink-900: #0b0f14;
+  --color-ink-850: #11161d;
+  --color-ink-800: #171d26;
+  --color-ink-700: #232b36;
+  --color-ink-600: #34404f;
+  --color-ink-400: #7b8797;
+  --color-ink-200: #c3cbd6;
+
+  --color-accent: #4da3ff;
+  --color-accent-dim: #1e4a7a;
+  --color-root: #ff8a3d;
+  --color-good: #35c07a;
+  --color-bad: #ef5468;
+  --color-warn: #e8b93b;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  font-family:
+    system-ui,
+    -apple-system,
+    'Hiragino Kaku Gothic ProN',
+    'Noto Sans JP',
+    sans-serif;
+  background: #f4f6f9;
+  color: #11161d;
+}
+
+.dark body {
+  background: var(--color-ink-900);
+  color: var(--color-ink-200);
+}
+
+button {
+  touch-action: manipulation;
+  font: inherit;
+}
+
+/* 指板は指でなぞるのでブラウザのスクロール/ズームを完全に無効化する */
+.fretboard-svg {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pop-in {
+  animation: pop-in 0.16s ease-out;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
