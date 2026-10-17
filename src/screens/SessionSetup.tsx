@@ -6,13 +6,21 @@ import { getTuning, allStrings } from '../music/fretboard';
 import { FILL_TASK_LIST, type FillTask } from '../music/tasks';
 import { keyName, pretty } from '../music/notes';
 import { weakKeys } from '../storage';
-import type { KeySel, Level, SessionConfig, SessionRecord } from '../types';
+import type { DiatonicFormat, KeySel, Level, SessionConfig, SessionRecord } from '../types';
 import { ALL_KEYS } from '../session/generator';
 
 const MODE_LABEL: Record<SessionConfig['mode'], string> = {
   positionFill: 'ポジション・フィル',
   noteName: '音名当て',
   interval: 'キー×度数',
+  diatonic: 'ダイアトニック暗記',
+  progression: 'キー当て',
+};
+
+const DIATONIC_FORMAT_LABEL: Record<DiatonicFormat, string> = {
+  reverseLookup: '逆引き',
+  fillTable: '一覧を埋める',
+  scaleTones: '構成音',
 };
 
 function sameKey(a: KeySel, b: KeySel) {
@@ -131,11 +139,9 @@ export function SessionSetup({
             <Segmented
               value={config.mode}
               onChange={(v) => set('mode', v)}
-              options={[
-                { value: 'positionFill', label: 'ポジション・フィル' },
-                { value: 'noteName', label: '音名当て' },
-                { value: 'interval', label: 'キー×度数' },
-              ]}
+              options={(
+                ['positionFill', 'noteName', 'interval', 'diatonic', 'progression'] as const
+              ).map((m) => ({ value: m, label: MODE_LABEL[m] }))}
             />
             <ModeIntro topic={config.mode} />
           </div>
@@ -182,6 +188,31 @@ export function SessionSetup({
                     }}
                   >
                     {t.label}
+                  </Chip>
+                );
+              })}
+            </div>
+          </Field>
+        )}
+
+        {config.mode === 'diatonic' && (
+          <Field label="出題形式" hint="複数選ぶとランダムに出る。逆引きは多めに出る">
+            <div className="flex flex-wrap gap-1">
+              {(['reverseLookup', 'fillTable', 'scaleTones'] as DiatonicFormat[]).map((f) => {
+                const on = config.diatonicFormats.includes(f);
+                return (
+                  <Chip
+                    key={f}
+                    active={on}
+                    tone="accent"
+                    onClick={() => {
+                      const next = on
+                        ? config.diatonicFormats.filter((x) => x !== f)
+                        : [...config.diatonicFormats, f];
+                      set('diatonicFormats', next.length ? next : [f]);
+                    }}
+                  >
+                    {DIATONIC_FORMAT_LABEL[f]}
                   </Chip>
                 );
               })}
@@ -336,8 +367,17 @@ export function SessionSetup({
               </>
             )}
 
-            {config.mode !== 'noteName' && (
-              <Field label="出題範囲">
+            {(config.mode === 'positionFill' ||
+              config.mode === 'interval' ||
+              config.mode === 'progression') && (
+              <Field
+                label="出題範囲"
+                hint={
+                  config.mode === 'progression'
+                    ? 'ダイアトニックのみ = 初級。足すほど進行にノンダイアトニックが混ざる'
+                    : undefined
+                }
+              >
                 <div className="flex flex-wrap gap-1">
                   {(['diatonic', 'secondary', 'interchange'] as ChordSource[]).map((s) => {
                     const on = config.chordSources.includes(s);

@@ -1,10 +1,14 @@
 import {
   degreePool,
+  diatonicSet,
   resolveChord,
+  romanLabel,
   type ChordNotation,
   type DegreeSpec,
   type ResolvedChord,
 } from '../music/chords';
+import { keyContainsChord } from '../music/analysis';
+import { makeUniqueProgression, type Progression } from '../music/progressions';
 import {
   allStrings,
   pcAt,
@@ -16,9 +20,16 @@ import {
   type Position,
   type Tuning,
 } from '../music/fretboard';
-import { keyName, mod12 } from '../music/notes';
+import {
+  keyName,
+  keyRootSpelling,
+  mod12,
+  relativeKey,
+  relativePairLabel,
+} from '../music/notes';
+import { scaleTones } from '../music/scales';
 import { buildFillTarget, type FillTask, type FillTarget } from '../music/tasks';
-import type { KeySel, Level, SessionConfig } from '../types';
+import type { DiatonicFormat, KeySel, Level, SessionConfig } from '../types';
 
 let seq = 0;
 function nextId(): string {
@@ -74,7 +85,14 @@ export interface IntervalQuestion {
 /** 過去に取り違えた組み合わせ: 正解ディグリー → 選んでしまったディグリー → 回数 */
 export type ConfusionMap = Map<string, Map<string, number>>;
 
-export type Question = PositionFillQuestion | NoteNameQuestion | IntervalQuestion;
+export type Question =
+  | PositionFillQuestion
+  | NoteNameQuestion
+  | IntervalQuestion
+  | DiatonicFillQuestion
+  | DiatonicReverseQuestion
+  | ScaleToneQuestion
+  | ProgressionQuestion;
 
 export const ALL_KEYS: KeySel[] = [
   ...Array.from({ length: 12 }, (_, pc) => ({ pc, quality: 'major' as const })),
@@ -284,6 +302,15 @@ export function makeQuestion(
       return makeNoteNameQuestion(cfg, tuning);
     case 'interval':
       return makeIntervalQuestion(cfg, key, notation, confusion);
+    case 'diatonic':
+      return makeDiatonicQuestion(cfg, key, notation, confusion);
+    case 'progression':
+      // そのキーで一意に決まる進行が作れなければ、別のキーで引き直す
+      for (let i = 0; i < 12; i++) {
+        const q = makeProgressionQuestion(cfg, i === 0 ? key : pickRandom(ALL_KEYS), notation, confusion);
+        if (q) return q;
+      }
+      return makeDiatonicReverseQuestion(key, notation, confusion);
   }
 }
 
@@ -291,4 +318,243 @@ export function enharmonicChoiceLabel(pc: number): string {
   const sharp = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'][mod12(pc)];
   const flat = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'][mod12(pc)];
   return sharp === flat ? sharp : `${sharp}/${flat}`;
+}
+
+// ============================================================
+// ダイアトニック暗記モード
+// ============================================================
+
+export interface DiatonicFillQuestion {
+  kind: 'diatonicFill';
+  id: string;
+  key: KeySel;
+  keyLabel: string;
+  /**
+   * 度数スロット。わざとシャッフルしてある。
+   * I から順に並べると「I, II, III... と数えて導く暗唱」になってしまい、
+   * このアプリで抜きたい数えるクセを強化してしまうため。
+   */
+  slots: { roman: string; answer: string; semitone: number }[];
+  /** 置けるコード (正解7 + まぎらわしいダミー2) */
+  chips: string[];
+}
+
+export interface DiatonicReverseQuestion {
+  kind: 'diatonicReverse';
+  id: string;
+  /** 提示するコード */
+  chord: ResolvedChord;
+  /** 正解の親メジャーキー */
+  key: KeySel;
+  keyLabel: string;
+  choices: { label: string; key: KeySel }[];
+  answer: { label: string; key: KeySel };
+  degreeInMajor: string;
+  degreeInMinor: string;
+}
+
+export interface ScaleToneQuestion {
+  kind: 'scaleTones';
+  id: string;
+  key: KeySel;
+  keyLabel: string;
+  answerPcs: number[];
+  /** キーの調号に従った綴り */
+  spelled: string[];
+}
+
+export interface ProgressionQuestion {
+  kind: 'progression';
+  id: string;
+  key: KeySel;
+  keyLabel: string;
+  progression: Progression;
+  choices: { label: string; key: KeySel }[];
+  answer: { label: string; key: KeySel };
+}
+
+/** 同じ答えに見えるキーを優先して誤答候補を作る */
+function pickKeyDistractors(
+  answer: KeySel,
+  count: number,
+  confusion: Map<string, number> | undefined,
+  alwaysInclude: KeySel[] = [],
+): KeySel[] {
+  const out: KeySel[] = [];
+  const seen = new Set<string>([keyName(answer.pc, answer.quality)]);
+  const push = (k: KeySel) => {
+    const label = keyName(k.pc, k.quality);
+    if (seen.has(label)) return;
+    seen.add(label);
+    out.push(k);
+  };
+  for (const k of alwaysInclude) push(k);
+
+  // 平行調・同主調・5度圏の隣が、実際にいちばん取り違えやすい
+  const candidates: KeySel[] = [
+    relativeKey(answer.pc, answer.quality),
+    { pc: answer.pc, quality: answer.quality === 'major' ? 'minor' : 'major' },
+    { pc: mod12(answer.pc + 7), quality: answer.quality },
+    { pc: mod12(answer.pc + 5), quality: answer.quality },
+    { pc: mod12(answer.pc + 2), quality: answer.quality },
+    { pc: mod12(answer.pc + 10), quality: answer.quality },
+    { pc: mod12(answer.pc + 7), quality: answer.quality === 'major' ? 'minor' : 'major' },
+  ];
+  const scored = candidates
+    .map((k) => ({
+      k,
+      score: Math.random() + Math.min(confusion?.get(keyName(k.pc, k.quality)) ?? 0, 3) * 3,
+    }))
+    .sort((a, b) => b.score - a.score);
+  for (const { k } of scored) {
+    if (out.length >= count) break;
+    push(k);
+  }
+  while (out.length < count) {
+    push(pickRandom(ALL_KEYS));
+    if (out.length > 20) break;
+  }
+  return out.slice(0, count);
+}
+
+const toKeyChoice = (k: KeySel) => ({ label: keyName(k.pc, k.quality), key: k });
+
+export function makeDiatonicFillQuestion(
+  key: KeySel,
+  notation: ChordNotation = 'triad',
+): DiatonicFillQuestion {
+  // マイナーの V は実戦で多い V7 を高めの確率で採用する
+  const specs = diatonicSet(key.quality, Math.random() < 0.75);
+  const correct = specs.map((s) => resolveChord(key.pc, key.quality, s, notation));
+  const correctSymbols = new Set(correct.map((c) => c.symbol));
+
+  // 同主調からの借用コードは「キーの中にありそうで無い」ので、ダミーとして一番効く
+  const dummies = shuffle(degreePool(key.quality, ['interchange']))
+    .map((s) => resolveChord(key.pc, key.quality, s, notation))
+    .filter((c) => !correctSymbols.has(c.symbol))
+    .map((c) => c.symbol)
+    .filter((sym, i, arr) => arr.indexOf(sym) === i)
+    .slice(0, 2);
+
+  return {
+    kind: 'diatonicFill',
+    id: nextId(),
+    key,
+    keyLabel: keyName(key.pc, key.quality),
+    slots: shuffle(
+      correct.map((c) => ({ roman: c.roman, answer: c.symbol, semitone: c.spec.semitone })),
+    ),
+    chips: shuffle([...correct.map((c) => c.symbol), ...dummies]),
+  };
+}
+
+export function makeDiatonicReverseQuestion(
+  key: KeySel,
+  notation: ChordNotation = 'triad',
+  confusion?: ConfusionMap,
+): DiatonicReverseQuestion {
+  // 出題は必ずメジャーキーのダイアトニックから作る。
+  // こうすると答えは「親メジャー + その平行短調」のペアに必ず一意に決まる
+  const parentPc = key.quality === 'major' ? key.pc : mod12(key.pc + 3);
+  const parent: KeySel = { pc: parentPc, quality: 'major' };
+  const spec = pickRandom(degreePool('major', ['diatonic']));
+  const chord = resolveChord(parentPc, 'major', spec, notation);
+
+  const minorPc = mod12(parentPc + 9);
+  const minorSpec = degreePool('minor', ['diatonic']).find(
+    (s) => mod12(minorPc + s.semitone) === chord.rootPc && s.quality === spec.quality,
+  );
+
+  const label = (k: KeySel) => relativePairLabel(k.pc, k.quality);
+  const answer = { label: label(parent), key: parent };
+  // ダミーは「そのコードを含まないキー」でなければ問題が成立しない
+  const wrong = pickKeyDistractors(parent, 8, confusion?.get(answer.label))
+    .map((k) => ({ pc: k.quality === 'major' ? k.pc : mod12(k.pc + 3), quality: 'major' as const }))
+    .filter((k) => !keyContainsChord(k, { rootPc: chord.rootPc, quality: spec.quality }))
+    .filter((k, i, arr) => arr.findIndex((x) => x.pc === k.pc) === i)
+    .slice(0, 3)
+    .map((k) => ({ label: label(k), key: k }));
+
+  return {
+    kind: 'diatonicReverse',
+    id: nextId(),
+    chord,
+    key: parent,
+    keyLabel: keyName(parentPc, 'major'),
+    choices: shuffle([answer, ...wrong]),
+    answer,
+    degreeInMajor: chord.roman,
+    degreeInMinor: minorSpec ? romanLabel(minorSpec, notation) : '—',
+  };
+}
+
+export function makeScaleToneQuestion(key: KeySel): ScaleToneQuestion {
+  const root = keyRootSpelling(key.pc, key.quality);
+  const tones = scaleTones(key.pc, root.letterIdx, key.quality === 'major' ? 'ionian' : 'aeolian');
+  return {
+    kind: 'scaleTones',
+    id: nextId(),
+    key,
+    keyLabel: keyName(key.pc, key.quality),
+    answerPcs: tones.map((t) => t.pc),
+    spelled: tones.map((t) => t.name),
+  };
+}
+
+export function makeProgressionQuestion(
+  cfg: SessionConfig,
+  key: KeySel,
+  notation: ChordNotation = 'triad',
+  confusion?: ConfusionMap,
+): ProgressionQuestion | null {
+  let prog = makeUniqueProgression(key, cfg.chordSources, notation);
+  // そのキーで組める進行が無ければ、出どころを広げて取り直す
+  prog ??= makeUniqueProgression(key, ['diatonic', 'secondary', 'interchange'], notation);
+  if (!prog) return null;
+
+  const label = keyName(key.pc, key.quality);
+  const answer = { label, key };
+  // 平行調は必ず選択肢に入れる。そこを見分けさせるのがこのゲームの本体
+  const wrong = pickKeyDistractors(key, 3, confusion?.get(label), [
+    relativeKey(key.pc, key.quality),
+  ]).map(toKeyChoice);
+
+  return {
+    kind: 'progression',
+    id: nextId(),
+    key,
+    keyLabel: label,
+    progression: prog,
+    choices: shuffle([answer, ...wrong]),
+    answer,
+  };
+}
+
+/** 逆引きを重めに出す (実戦で使う頻度が高いため) */
+const DIATONIC_FORMAT_WEIGHT: Record<DiatonicFormat, number> = {
+  reverseLookup: 2,
+  fillTable: 1,
+  scaleTones: 1,
+};
+
+export function makeDiatonicQuestion(
+  cfg: SessionConfig,
+  key: KeySel,
+  notation: ChordNotation = 'triad',
+  confusion?: ConfusionMap,
+): Question {
+  const formats = cfg.diatonicFormats.length ? cfg.diatonicFormats : (['reverseLookup'] as DiatonicFormat[]);
+  const total = formats.reduce((a, f) => a + DIATONIC_FORMAT_WEIGHT[f], 0);
+  let r = Math.random() * total;
+  let chosen = formats[formats.length - 1];
+  for (const f of formats) {
+    r -= DIATONIC_FORMAT_WEIGHT[f];
+    if (r <= 0) {
+      chosen = f;
+      break;
+    }
+  }
+  if (chosen === 'fillTable') return makeDiatonicFillQuestion(key, notation);
+  if (chosen === 'scaleTones') return makeScaleToneQuestion(key);
+  return makeDiatonicReverseQuestion(key, notation, confusion);
 }

@@ -167,8 +167,9 @@ export function Summary({
   const timed = answers.filter((a) => !a.skipped && !a.timedOut);
   const elapsed = session ? session.endedAt - session.startedAt : 0;
 
-  // 完了時間はポジション・フィルにしか意味がないので、他モードでは列ごと出さない
-  const showCompletion = scope.some((s) => s.mode === 'positionFill');
+  // 完了時間は「複数回タップして埋める」出題にしか意味がない。
+  // モードで決め打ちせず、実際に記録があるかで列を出し分ける
+  const showCompletion = answers.some((a) => a.completionTimeMs > 0);
   const latencyLabel = showCompletion ? '初手' : '回答';
 
   const trendSessions = useMemo(

@@ -41,6 +41,8 @@ export interface RootSpelling {
   pc: number;
   letterIdx: number;
   name: string;
+  /** 調号の数が同じで、どちらの綴りも正解になるキーの相方 (F# / Gb など) */
+  alt?: { name: string; letterIdx: number };
 }
 
 /** 12 のメジャーキーの標準的な綴り */
@@ -51,7 +53,8 @@ export const MAJOR_KEY_ROOTS: RootSpelling[] = [
   { pc: 3, letterIdx: 2, name: 'Eb' },
   { pc: 4, letterIdx: 2, name: 'E' },
   { pc: 5, letterIdx: 3, name: 'F' },
-  { pc: 6, letterIdx: 3, name: 'F#' },
+  // F# (♯6個) と Gb (♭6個) は同数なのでどちらも正解
+  { pc: 6, letterIdx: 3, name: 'F#', alt: { name: 'Gb', letterIdx: 4 } },
   { pc: 7, letterIdx: 4, name: 'G' },
   { pc: 8, letterIdx: 5, name: 'Ab' },
   { pc: 9, letterIdx: 5, name: 'A' },
@@ -64,7 +67,8 @@ export const MINOR_KEY_ROOTS: RootSpelling[] = [
   { pc: 0, letterIdx: 0, name: 'C' },
   { pc: 1, letterIdx: 0, name: 'C#' },
   { pc: 2, letterIdx: 1, name: 'D' },
-  { pc: 3, letterIdx: 2, name: 'Eb' },
+  // Ebm (♭6個) と D#m (♯6個) は同数なのでどちらも正解
+  { pc: 3, letterIdx: 2, name: 'Eb', alt: { name: 'D#', letterIdx: 1 } },
   { pc: 4, letterIdx: 2, name: 'E' },
   { pc: 5, letterIdx: 3, name: 'F' },
   { pc: 6, letterIdx: 3, name: 'F#' },
@@ -105,4 +109,26 @@ export const GENERIC_DEGREES = ['1', 'b2', '2', 'b3', '3', '4', 'b5', '5', 'b6',
 
 export function midiToPc(midi: number): number {
   return mod12(midi);
+}
+
+/** 異名同音の綴りも正解になるキーなら "F# (= Gb)" のように返す */
+export function keyNameWithAlt(pc: number, quality: KeyQuality): string {
+  const r = keyRootSpelling(pc, quality);
+  const suffix = quality === 'minor' ? 'm' : '';
+  if (!r.alt) return r.name + suffix;
+  return `${r.name}${suffix} (= ${r.alt.name}${suffix})`;
+}
+
+/** 平行調のペア。major の pc を渡すと相対 minor の pc、またはその逆 */
+export function relativeKey(pc: number, quality: KeyQuality): { pc: number; quality: KeyQuality } {
+  return quality === 'major'
+    ? { pc: mod12(pc + 9), quality: 'minor' }
+    : { pc: mod12(pc + 3), quality: 'major' };
+}
+
+/** "F / Dm" のような平行調ペアの表記 */
+export function relativePairLabel(pc: number, quality: KeyQuality): string {
+  const major = quality === 'major' ? { pc, quality } : relativeKey(pc, quality);
+  const minor = quality === 'minor' ? { pc, quality } : relativeKey(pc, quality);
+  return `${keyName(major.pc, 'major')} / ${keyName(minor.pc, 'minor')}`;
 }

@@ -38,6 +38,8 @@ export interface DegreeSpec {
   /** そのコード上で弾くスケール */
   scale: ScaleType;
   source: ChordSource;
+  /** 出題されやすさ。省略時は 1 */
+  weight?: number;
 }
 
 const MAJOR_DIATONIC: DegreeSpec[] = [
@@ -55,7 +57,10 @@ const MINOR_DIATONIC: DegreeSpec[] = [
   { roman: 'IIm7b5', semitone: 2, letterOffset: 1, quality: 'm7b5', scale: 'locrian', source: 'diatonic' },
   { roman: 'bIIImaj7', semitone: 3, letterOffset: 2, quality: 'maj7', scale: 'ionian', source: 'diatonic' },
   { roman: 'IVm7', semitone: 5, letterOffset: 3, quality: 'm7', scale: 'dorian', source: 'diatonic' },
-  { roman: 'Vm7', semitone: 7, letterOffset: 4, quality: 'm7', scale: 'phrygian', source: 'diatonic' },
+  // マイナーキーのドミナントは実戦では V7 がほとんどなので、ハーモニックマイナー由来の
+  // V7 もダイアトニック側に置き、ナチュラルマイナーの Vm7 より重く出す
+  { roman: 'V7', semitone: 7, letterOffset: 4, quality: 'dom7', scale: 'hmp5b', source: 'diatonic', weight: 2.5 },
+  { roman: 'Vm7', semitone: 7, letterOffset: 4, quality: 'm7', scale: 'phrygian', source: 'diatonic', weight: 0.8 },
   { roman: 'bVImaj7', semitone: 8, letterOffset: 5, quality: 'maj7', scale: 'lydian', source: 'diatonic' },
   { roman: 'bVII7', semitone: 10, letterOffset: 6, quality: 'dom7', scale: 'mixolydian', source: 'diatonic' },
 ];
@@ -69,7 +74,6 @@ const MAJOR_SECONDARY: DegreeSpec[] = [
 ];
 
 const MINOR_SECONDARY: DegreeSpec[] = [
-  { roman: 'V7', semitone: 7, letterOffset: 4, quality: 'dom7', scale: 'hmp5b', source: 'secondary' },
   { roman: 'V7/bIII', semitone: 10, letterOffset: 6, quality: 'dom7', scale: 'mixolydian', source: 'secondary' },
   { roman: 'V7/IV', semitone: 0, letterOffset: 0, quality: 'dom7', scale: 'hmp5b', source: 'secondary' },
   { roman: 'V7/V', semitone: 2, letterOffset: 1, quality: 'dom7', scale: 'hmp5b', source: 'secondary' },
@@ -156,4 +160,23 @@ export function resolveChord(
 export function chordVoicing(rootPc: number, quality: ChordQuality, baseOctave = 3): number[] {
   const base = 12 * (baseOctave + 1) + rootPc;
   return CHORD_TONE_INTERVALS[quality].map((i) => base + i);
+}
+
+/** weight に従って1つ選ぶ */
+export function pickWeightedSpec(pool: DegreeSpec[]): DegreeSpec {
+  const total = pool.reduce((a, s) => a + (s.weight ?? 1), 0);
+  let r = Math.random() * total;
+  for (const s of pool) {
+    r -= s.weight ?? 1;
+    if (r <= 0) return s;
+  }
+  return pool[pool.length - 1];
+}
+
+/** キーの「ダイアトニック7和音」。マイナーは V を V7 / Vm7 どちらかに決めて7つ返す */
+export function diatonicSet(quality: KeyQuality, preferDominantV = true): DegreeSpec[] {
+  const all = degreePool(quality, ['diatonic']);
+  if (quality === 'major') return all;
+  const v = all.find((s) => s.roman === (preferDominantV ? 'V7' : 'Vm7'))!;
+  return all.filter((s) => s.semitone !== 7).concat(v).sort((a, b) => a.semitone - b.semitone);
 }

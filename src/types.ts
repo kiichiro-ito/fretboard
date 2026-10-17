@@ -3,7 +3,16 @@ import type { KeyQuality } from './music/notes';
 import type { ScaleType } from './music/scales';
 import type { FillTask } from './music/tasks';
 
-export type ModeId = 'reference' | 'positionFill' | 'noteName' | 'interval';
+export type ModeId =
+  | 'reference'
+  | 'positionFill'
+  | 'noteName'
+  | 'interval'
+  | 'diatonic'
+  | 'progression';
+
+/** ダイアトニック暗記モードの出題形式 */
+export type DiatonicFormat = 'fillTable' | 'reverseLookup' | 'scaleTones';
 export type Level = 1 | 2 | 3 | 4;
 
 export interface KeySel {
@@ -45,6 +54,8 @@ export interface SessionConfig {
   windowWidth: number;
   /** ポジション・フィルのお題。ここからランダムに出る */
   fillTasks: FillTask[];
+  /** ダイアトニック暗記モードの出題形式。ここからランダムに出る */
+  diatonicFormats: DiatonicFormat[];
   stringRange: StringRange;
   fretMin: number;
   fretMax: number;
@@ -67,6 +78,7 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   minutes: 5,
   windowWidth: 5,
   fillTasks: ['root', 'guide', 'chordTone'],
+  diatonicFormats: ['reverseLookup', 'fillTable', 'scaleTones'],
   stringRange: 'all',
   fretMin: 0,
   fretMax: 12,
@@ -89,7 +101,12 @@ export interface AnswerRecord {
   scale?: ScaleType;
   /** ポジション・フィルのお題 */
   task?: FillTask;
-  /** キー×度数クイズで実際に選んだディグリー (苦手な取り違えを覚えておくため) */
+  /** ダイアトニック暗記モードの出題形式 */
+  format?: DiatonicFormat;
+  /**
+   * 実際に選んだ答え。キー×度数ならディグリー、キーを答えるモードならキー名。
+   * 「何と取り違えたか」を覚えておき、次の誤答選択肢に混ぜるために使う。
+   */
   pickedDegree?: string;
   /** 出題表示 〜 最初のタップ (最重要指標) */
   firstTapLatencyMs: number;
@@ -130,6 +147,6 @@ export interface QuestionResult {
   isCorrect: boolean;
   skipped: boolean;
   timedOut: boolean;
-  /** キー×度数クイズで選んだディグリー */
+  /** 実際に選んだ答え (ディグリー または キー名) */
   pickedDegree?: string;
 }

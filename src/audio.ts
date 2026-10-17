@@ -57,3 +57,15 @@ export function playFeedback(correct: boolean): void {
 export function unlockAudio(): void {
   getCtx();
 }
+
+/**
+ * コード進行を順番に鳴らす。
+ * 進行は「キー + 度数」で保持しているので、ここに MIDI ノートを渡すだけで鳴らせる。
+ */
+export function playProgression(chords: number[][], secondsPerChord = 1.1): void {
+  chords.forEach((notes, i) => {
+    notes.forEach((n, j) =>
+      playNote(n, i * secondsPerChord + j * 0.04, secondsPerChord * 0.95, 0.1),
+    );
+  });
+}

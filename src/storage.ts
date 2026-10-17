@@ -180,19 +180,27 @@ export function weakScore(k: KeyStats): number {
 }
 
 /**
- * キー×度数クイズで「正解 → 実際に選んだもの」の取り違えを数える。
+ * 「正解 → 実際に選んだもの」の取り違えを数える。
  * 誤答選択肢をその人の苦手に寄せるために使う。
+ *
+ * キー×度数はディグリー同士、キーを答えるモードはキー同士で集計する。
  */
-export function buildConfusion(sessions: SessionRecord[]): Map<string, Map<string, number>> {
+export function buildConfusion(
+  sessions: SessionRecord[],
+  mode: SessionRecord['mode'],
+): Map<string, Map<string, number>> {
   const out = new Map<string, Map<string, number>>();
+  const expectedOf = (a: SessionRecord['answers'][number]) =>
+    mode === 'interval' ? a.degreeRoman : a.keyLabel;
   for (const s of sessions) {
-    if (s.mode !== 'interval') continue;
+    if (s.mode !== mode) continue;
     for (const a of s.answers) {
-      if (a.isCorrect || !a.degreeRoman || !a.pickedDegree) continue;
-      let inner = out.get(a.degreeRoman);
+      const expected = expectedOf(a);
+      if (a.isCorrect || !expected || !a.pickedDegree) continue;
+      let inner = out.get(expected);
       if (!inner) {
         inner = new Map();
-        out.set(a.degreeRoman, inner);
+        out.set(expected, inner);
       }
       inner.set(a.pickedDegree, (inner.get(a.pickedDegree) ?? 0) + 1);
     }

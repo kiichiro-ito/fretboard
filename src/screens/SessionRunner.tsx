@@ -15,6 +15,8 @@ import type {
 import { IntervalQuiz } from './IntervalQuiz';
 import { NoteNameQuiz } from './NoteNameQuiz';
 import { PositionFill } from './PositionFill';
+import { DiatonicQuiz } from './DiatonicQuiz';
+import { ProgressionQuiz } from './ProgressionQuiz';
 import { ScaleReference } from './ScaleReference';
 
 function resolveKeys(config: SessionConfig, sessions: SessionRecord[]): KeySel[] {
@@ -45,10 +47,7 @@ export function SessionRunner({
 }) {
   const keys = useMemo(() => resolveKeys(config, sessions), [config, sessions]);
   // 過去に取り違えたコードを誤答選択肢に混ぜるための履歴
-  const confusion = useMemo(
-    () => (config.mode === 'interval' ? buildConfusion(sessions) : undefined),
-    [config.mode, sessions],
-  );
+  const confusion = useMemo(() => buildConfusion(sessions, config.mode), [sessions, config.mode]);
   const startedAtRef = useRef(Date.now());
   const answersRef = useRef<AnswerRecord[]>([]);
   const prevKeyRef = useRef<KeySel | undefined>(undefined);
@@ -89,16 +88,29 @@ export function SessionRunner({
       const q = question;
       const key: KeySel =
         q.kind === 'noteName' ? { pc: q.answerPc, quality: 'major' } : q.key;
+      // コードを1つだけ提示する出題だけが chord を持つ
+      const chord =
+        q.kind === 'positionFill' || q.kind === 'interval' || q.kind === 'diatonicReverse'
+          ? q.chord
+          : undefined;
       const rec: AnswerRecord = {
         questionId: q.id,
         mode: config.mode,
         keyLabel: q.kind === 'noteName' ? keyName(q.answerPc, 'major') : q.keyLabel,
         keyPc: key.pc,
         keyQuality: key.quality,
-        chordSymbol: q.kind === 'noteName' ? undefined : q.chord.symbol,
-        degreeRoman: q.kind === 'noteName' ? undefined : q.chord.spec.roman,
-        scale: q.kind === 'noteName' ? undefined : q.chord.scale,
+        chordSymbol: chord?.symbol,
+        degreeRoman: chord?.spec.roman,
+        scale: chord?.scale,
         task: q.kind === 'positionFill' ? q.task : undefined,
+        format:
+          q.kind === 'diatonicFill'
+            ? 'fillTable'
+            : q.kind === 'diatonicReverse'
+              ? 'reverseLookup'
+              : q.kind === 'scaleTones'
+                ? 'scaleTones'
+                : undefined,
         pickedDegree: r.pickedDegree,
         firstTapLatencyMs: r.firstTapLatencyMs,
         completionTimeMs: r.completionTimeMs,
@@ -130,8 +142,10 @@ export function SessionRunner({
       ? (done / config.count) * 100
       : Math.min(100, (elapsed / totalMs) * 100);
 
-  const referenceRoot = question.kind === 'noteName' ? undefined : question.chord.rootPc;
-  const referenceScale = question.kind === 'noteName' ? undefined : question.chord.scale;
+  const refChord =
+    question.kind === 'positionFill' || question.kind === 'interval' ? question.chord : undefined;
+  const referenceRoot = refChord?.rootPc;
+  const referenceScale = refChord?.scale;
 
   return (
     <div className="flex min-h-full flex-col">
@@ -193,6 +207,14 @@ export function SessionRunner({
         )}
         {question.kind === 'interval' && (
           <IntervalQuiz question={question} onAnswer={handleAnswer} />
+        )}
+        {(question.kind === 'diatonicFill' ||
+          question.kind === 'diatonicReverse' ||
+          question.kind === 'scaleTones') && (
+          <DiatonicQuiz question={question} onAnswer={handleAnswer} />
+        )}
+        {question.kind === 'progression' && (
+          <ProgressionQuiz question={question} onAnswer={handleAnswer} />
         )}
       </div>
 
