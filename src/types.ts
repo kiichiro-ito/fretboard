@@ -25,6 +25,8 @@ export type LabelMode = 'degree' | 'note' | 'none';
 
 export interface AppSettings {
   tuningId: string;
+  /** 答え合わせのあと自動で次の問題へ進むか。false なら自分で「次へ」を押す */
+  autoAdvance: boolean;
   lefty: boolean;
   orientation: Orientation;
   dark: boolean;
@@ -33,6 +35,7 @@ export interface AppSettings {
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   tuningId: 'standard',
+  autoAdvance: true,
   lefty: false,
   orientation: 'auto',
   dark: true,

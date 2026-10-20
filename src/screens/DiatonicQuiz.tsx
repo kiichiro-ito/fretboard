@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, cx, fmtMs } from '../components/ui';
 import { HelpBar } from '../components/Help';
+import { NextButton, useAdvance } from '../components/advance';
 import { keyNameWithAlt, mod12, pretty } from '../music/notes';
 import { playFeedback } from '../audio';
 import {
@@ -25,7 +26,11 @@ interface Timing {
 }
 
 /** 3つの出題形式で共通の、計測と答え合わせの進行 */
-function useQuizFlow(questionId: string, onAnswer: (r: QuestionResult) => void) {
+function useQuizFlow(
+  questionId: string,
+  autoAdvance: boolean,
+  onAnswer: (r: QuestionResult) => void,
+) {
   const [result, setResult] = useState<QuestionResult | null>(null);
   const timing = useRef<Timing>({ shownAt: performance.now(), firstInputAt: null });
   const answered = useRef(false);
@@ -76,11 +81,7 @@ function useQuizFlow(questionId: string, onAnswer: (r: QuestionResult) => void) 
     playFeedback(false);
   }, []);
 
-  useEffect(() => {
-    if (!result) return;
-    const t = setTimeout(() => onAnswer(result), result.isCorrect ? REVEAL_OK_MS : REVEAL_MISS_MS);
-    return () => clearTimeout(t);
-  }, [result, onAnswer]);
+  useAdvance(result, autoAdvance, onAnswer, REVEAL_OK_MS, REVEAL_MISS_MS);
 
   return { result, markInput, finish, giveUp };
 }
@@ -89,12 +90,14 @@ function Shell({
   children,
   result,
   detail,
+  autoAdvance,
   onNext,
   onGiveUp,
 }: {
   children: React.ReactNode;
   result: QuestionResult | null;
   detail: React.ReactNode;
+  autoAdvance: boolean;
   onNext: () => void;
   onGiveUp?: () => void;
 }) {
@@ -122,9 +125,7 @@ function Shell({
             初手 {fmtMs(result.firstTapLatencyMs)}
             {result.completionTimeMs > 0 && <> / 完了 {fmtMs(result.completionTimeMs)}</>}
           </div>
-          <Button size="sm" variant="ghost" onClick={onNext}>
-            次へ →
-          </Button>
+          <NextButton autoAdvance={autoAdvance} onClick={onNext} />
         </div>
       ) : (
         onGiveUp && (
@@ -143,12 +144,14 @@ function Shell({
 
 function FillTable({
   question,
+  autoAdvance,
   onAnswer,
 }: {
   question: DiatonicFillQuestion;
+  autoAdvance: boolean;
   onAnswer: (r: QuestionResult) => void;
 }) {
-  const { result, markInput, finish, giveUp } = useQuizFlow(question.id, onAnswer);
+  const { result, markInput, finish, giveUp } = useQuizFlow(question.id, autoAdvance, onAnswer);
   const [placed, setPlaced] = useState<(string | null)[]>([]);
   const [held, setHeld] = useState<string | null>(null);
 
@@ -198,6 +201,7 @@ function FillTable({
   return (
     <Shell
       result={result}
+      autoAdvance={autoAdvance}
       onNext={() => result && onAnswer(result)}
       onGiveUp={giveUp}
       detail={
@@ -292,12 +296,14 @@ function FillTable({
 
 function ReverseLookup({
   question,
+  autoAdvance,
   onAnswer,
 }: {
   question: DiatonicReverseQuestion;
+  autoAdvance: boolean;
   onAnswer: (r: QuestionResult) => void;
 }) {
-  const { result, markInput, finish } = useQuizFlow(question.id, onAnswer);
+  const { result, markInput, finish } = useQuizFlow(question.id, autoAdvance, onAnswer);
   const [picked, setPicked] = useState<string | null>(null);
 
   useEffect(() => setPicked(null), [question.id]);
@@ -313,6 +319,7 @@ function ReverseLookup({
   return (
     <Shell
       result={result}
+      autoAdvance={autoAdvance}
       onNext={() => result && onAnswer(result)}
       detail={
         <span className="text-slate-500 dark:text-ink-400">
@@ -361,12 +368,14 @@ function ReverseLookup({
 
 function ScaleTones({
   question,
+  autoAdvance,
   onAnswer,
 }: {
   question: ScaleToneQuestion;
+  autoAdvance: boolean;
   onAnswer: (r: QuestionResult) => void;
 }) {
-  const { result, markInput, finish, giveUp } = useQuizFlow(question.id, onAnswer);
+  const { result, markInput, finish, giveUp } = useQuizFlow(question.id, autoAdvance, onAnswer);
   const [picked, setPicked] = useState<number[]>([]);
 
   useEffect(() => setPicked([]), [question.id]);
@@ -389,6 +398,7 @@ function ScaleTones({
   return (
     <Shell
       result={result}
+      autoAdvance={autoAdvance}
       onNext={() => result && onAnswer(result)}
       onGiveUp={giveUp}
       detail={
@@ -442,12 +452,15 @@ function ScaleTones({
 
 export function DiatonicQuiz({
   question,
+  autoAdvance,
   onAnswer,
 }: {
   question: DiatonicQuestion;
+  autoAdvance: boolean;
   onAnswer: (r: QuestionResult) => void;
 }) {
-  if (question.kind === 'diatonicFill') return <FillTable question={question} onAnswer={onAnswer} />;
-  if (question.kind === 'scaleTones') return <ScaleTones question={question} onAnswer={onAnswer} />;
-  return <ReverseLookup question={question} onAnswer={onAnswer} />;
+  const shared = { autoAdvance, onAnswer };
+  if (question.kind === 'diatonicFill') return <FillTable question={question} {...shared} />;
+  if (question.kind === 'scaleTones') return <ScaleTones question={question} {...shared} />;
+  return <ReverseLookup question={question} {...shared} />;
 }

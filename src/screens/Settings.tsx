@@ -64,6 +64,24 @@ export function Settings({
           />
         </Field>
 
+        <Field
+          label="答え合わせのあと"
+          hint={
+            settings.autoAdvance
+              ? 'テンポ重視。正解なら約1秒、間違いなら約2〜3秒で次へ進む'
+              : '復習重視。「次へ」を押すまで止まる (Enter / スペースでも進める)'
+          }
+        >
+          <Segmented
+            value={settings.autoAdvance ? 'auto' : 'manual'}
+            onChange={(v) => set('autoAdvance', v === 'auto')}
+            options={[
+              { value: 'auto', label: '自動で次へ' },
+              { value: 'manual', label: '自分で次へ' },
+            ]}
+          />
+        </Field>
+
         <div className="flex flex-wrap gap-5">
           <Toggle checked={settings.lefty} onChange={(v) => set('lefty', v)} label="左利き (反転)" />
           <Toggle checked={settings.dark} onChange={(v) => set('dark', v)} label="ダークモード" />

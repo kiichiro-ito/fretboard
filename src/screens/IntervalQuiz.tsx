@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cx } from '../components/ui';
 import { HelpBar } from '../components/Help';
+import { NextButton, useAdvance } from '../components/advance';
 import { pretty } from '../music/notes';
 import { SCALES } from '../music/scales';
 import { playFeedback } from '../audio';
@@ -12,9 +13,11 @@ const REVEAL_MISS_MS = 1900;
 
 export function IntervalQuiz({
   question,
+  autoAdvance,
   onAnswer,
 }: {
   question: IntervalQuestion;
+  autoAdvance: boolean;
   onAnswer: (r: QuestionResult) => void;
 }) {
   const [picked, setPicked] = useState<IntervalChoice | null>(null);
@@ -51,12 +54,8 @@ export function IntervalQuiz({
     [question.answer.roman],
   );
 
-  useEffect(() => {
-    if (!result) return;
-    // 間違えたときは「何が正解だったか」を読む時間を長めにとる
-    const t = setTimeout(() => onAnswer(result), result.isCorrect ? REVEAL_MS : REVEAL_MISS_MS);
-    return () => clearTimeout(t);
-  }, [result, onAnswer]);
+  // 間違えたときは「何が正解だったか」を読む時間を長めにとる
+  useAdvance(result, autoAdvance, onAnswer, REVEAL_MS, REVEAL_MISS_MS);
 
   const asksChord = question.direction === 'toChord';
 
@@ -115,6 +114,7 @@ export function IntervalQuiz({
             {' — '}
             {pretty(question.chord.rootName)} {SCALES[question.chord.scale].name}
           </div>
+          <NextButton autoAdvance={autoAdvance} onClick={() => onAnswer(result)} />
         </div>
       )}
     </div>

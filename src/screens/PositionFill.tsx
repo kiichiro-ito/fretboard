@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Fretboard, type Marker, type PaintMode } from '../components/Fretboard';
 import { Button, cx, fmtMs } from '../components/ui';
 import { HelpBar } from '../components/Help';
+import { NextButton, useAdvance } from '../components/advance';
 import { chordVoicing } from '../music/chords';
 import { pcAt, posKey, type Position, type Tuning } from '../music/fretboard';
 import { pretty } from '../music/notes';
@@ -104,12 +105,8 @@ export function PositionFill({
     return () => clearTimeout(t);
   }, [selected, correctKeys.size, result, judge]);
 
-  // 正解の形を見せてから次へ
-  useEffect(() => {
-    if (!result) return;
-    const t = setTimeout(() => onAnswer(result), result.isCorrect ? REVEAL_OK_MS : REVEAL_MISS_MS);
-    return () => clearTimeout(t);
-  }, [result, onAnswer]);
+  // 正解の形を見せてから次へ (設定によっては自分で「次へ」を押すまで止まる)
+  useAdvance(result, settings.autoAdvance, onAnswer, REVEAL_OK_MS, REVEAL_MISS_MS);
 
   const handlePaint = useCallback((p: Position, mode: PaintMode) => {
     if (answeredRef.current) return;
@@ -253,9 +250,7 @@ export function PositionFill({
             {' / '}
             完了 <b className="text-slate-800 dark:text-ink-200">{fmtMs(result.completionTimeMs)}</b>
           </div>
-          <Button size="sm" variant="ghost" onClick={() => onAnswer(result)}>
-            次へ →
-          </Button>
+          <NextButton autoAdvance={settings.autoAdvance} onClick={() => onAnswer(result)} />
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-center gap-2">

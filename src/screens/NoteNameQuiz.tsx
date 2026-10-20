@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Fretboard, type Marker } from '../components/Fretboard';
 import { cx } from '../components/ui';
 import { HelpBar } from '../components/Help';
+import { NextButton, useAdvance } from '../components/advance';
 import { midiAt, posKey, type Tuning } from '../music/fretboard';
 import { mod12, pretty } from '../music/notes';
 import { playFeedback, playNote } from '../audio';
@@ -88,11 +89,7 @@ export function NoteNameQuiz({
     return () => clearInterval(iv);
   }, [config.noteQuizTimeLimitSec, result, finish, question.id]);
 
-  useEffect(() => {
-    if (!result) return;
-    const t = setTimeout(() => onAnswer(result), REVEAL_MS);
-    return () => clearTimeout(t);
-  }, [result, onAnswer]);
+  useAdvance(result, settings.autoAdvance, onAnswer, REVEAL_MS, REVEAL_MS);
 
   const markers = useMemo(() => {
     const m = new Map<string, Marker>();
@@ -167,6 +164,9 @@ export function NoteNameQuiz({
             </span>
           )}
           <span className="ml-2">{(result.firstTapLatencyMs / 1000).toFixed(2)}s</span>
+          <div className="mt-2">
+            <NextButton autoAdvance={settings.autoAdvance} onClick={() => onAnswer(result)} />
+          </div>
         </div>
       )}
     </div>

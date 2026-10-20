@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, cx, fmtMs } from '../components/ui';
 import { HelpBar } from '../components/Help';
+import { NextButton, useAdvance } from '../components/advance';
 import { chordVoicing } from '../music/chords';
 import { keyNameWithAlt, pretty } from '../music/notes';
 import { playFeedback, playProgression } from '../audio';
@@ -12,9 +13,11 @@ const REVEAL_MISS_MS = 3200;
 
 export function ProgressionQuiz({
   question,
+  autoAdvance,
   onAnswer,
 }: {
   question: ProgressionQuestion;
+  autoAdvance: boolean;
   onAnswer: (r: QuestionResult) => void;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
@@ -50,11 +53,7 @@ export function ProgressionQuiz({
     [question.answer.label],
   );
 
-  useEffect(() => {
-    if (!result) return;
-    const t = setTimeout(() => onAnswer(result), result.isCorrect ? REVEAL_OK_MS : REVEAL_MISS_MS);
-    return () => clearTimeout(t);
-  }, [result, onAnswer]);
+  useAdvance(result, autoAdvance, onAnswer, REVEAL_OK_MS, REVEAL_MISS_MS);
 
   const { chords, specs, template } = question.progression;
 
@@ -138,9 +137,7 @@ export function ProgressionQuiz({
           >
             🔊 鳴らす
           </Button>
-          <Button size="sm" variant="ghost" onClick={() => onAnswer(result)}>
-            次へ →
-          </Button>
+          <NextButton autoAdvance={autoAdvance} onClick={() => onAnswer(result)} />
         </div>
       )}
     </div>

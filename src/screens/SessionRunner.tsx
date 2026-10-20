@@ -206,15 +206,27 @@ export function SessionRunner({
           />
         )}
         {question.kind === 'interval' && (
-          <IntervalQuiz question={question} onAnswer={handleAnswer} />
+          <IntervalQuiz
+            question={question}
+            autoAdvance={settings.autoAdvance}
+            onAnswer={handleAnswer}
+          />
         )}
         {(question.kind === 'diatonicFill' ||
           question.kind === 'diatonicReverse' ||
           question.kind === 'scaleTones') && (
-          <DiatonicQuiz question={question} onAnswer={handleAnswer} />
+          <DiatonicQuiz
+            question={question}
+            autoAdvance={settings.autoAdvance}
+            onAnswer={handleAnswer}
+          />
         )}
         {question.kind === 'progression' && (
-          <ProgressionQuiz question={question} onAnswer={handleAnswer} />
+          <ProgressionQuiz
+            question={question}
+            autoAdvance={settings.autoAdvance}
+            onAnswer={handleAnswer}
+          />
         )}
       </div>
 
